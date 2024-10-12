@@ -2,10 +2,13 @@ import * as pulumi from "@pulumi/pulumi";
 import * as digitalocean from "@pulumi/digitalocean";
 import * as k8shelm from "@pulumi/kubernetes/helm/v3";
 import * as k8s from "@pulumi/kubernetes";
+const config = new pulumi.Config();
+const DO_TOKEN = config.require("DO_TOKEN")
+
 
 
 const provider = new digitalocean.Provider("do-provider", {
-    token: process.env.DIGITALOCEAN_TOKEN,
+    token: DO_TOKEN,
 });
 
 
