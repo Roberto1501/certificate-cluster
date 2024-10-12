@@ -18,6 +18,7 @@ const cluster = new digitalocean.KubernetesCluster(`test-cluster`, {
         nodeCount: 1,
     },
 });
+
 const ingressNamespace = new k8s.core.v1.Namespace("nginx-ingress", {
     metadata: {
         name: "nginx-ingress",
@@ -65,40 +66,34 @@ const clusterIssuer = new k8s.apiextensions.CustomResource("letsencrypt-cluster-
     },
     spec: {
         acme: {
-            email: "robertocarvalho508@gmail.com", // Replace with your email address
+            email: "robertocarvalho508@gmail.com", // Seu email
             server: "https://acme-v02.api.letsencrypt.org/directory",
             privateKeySecretRef: {
-                name: "letsencrypt", // Name of the secret where the private key will be stored
+                name: "letsencrypt", // Nome do secret onde será armazenada a chave privada
             },
-            solvers: [{
-                http01: {
-                    ingress: {
-                        class: "nginx", // If you're using NGINX Ingress
+            solvers: [
+                {
+                    http01: {
+                        ingress: {
+                            class: "nginx", // Usando Ingress NGINX para http-01
+                        },
                     },
                 },
-            }],
+                {
+                    dns01: {
+                        digitalocean: {
+                            tokenSecretRef: {
+                                name: "digitalocean-dns", // Nome do secret contendo o token da DigitalOcean
+                                key: "access-token", // Chave dentro do secret com o token
+                            },
+                        },
+                    },
+                },
+            ],
         },
     },
 });
 
-
-const certificate = new k8s.apiextensions.CustomResource("app-cert", {
-    apiVersion: "cert-manager.io/v1",
-    kind: "Certificate",
-    metadata: {
-        name: "app-cert",
-        namespace: "default", // Replace with your namespace
-    },
-    spec: {
-        secretName: "app-cert-tls", // Alterar o nome do secret para algo único
-        issuerRef: {
-            name: "letsencrypt", // Use the ClusterIssuer name
-            kind: "ClusterIssuer",
-        },
-        commonName: "fabricaleads.com.br", // Replace with your domain
-        dnsNames: ["fabricaleads.com.br"], // Add your DNS names here
-    },
-});
 
 const newCertificate = new k8s.apiextensions.CustomResource("cert", {
     apiVersion: "cert-manager.io/v1",
@@ -191,28 +186,45 @@ const ingress = new k8s.networking.v1.Ingress("next-ingress", {
         },
     },
     spec: {
-        rules: [{
-            host: "fabricaleads.com.br",
-            http: {
-                paths: [{
-                    path: "/",
-                    pathType: "Prefix",
-                    backend: {
-                        service: {
-                            name: nginxService.metadata.name,
-                            port: { number: 80 },
+        rules: [
+            {
+                host: "fabricaleads.com.br", // Regra para o domínio principal
+                http: {
+                    paths: [{
+                        path: "/",
+                        pathType: "Prefix",
+                        backend: {
+                            service: {
+                                name: nginxService.metadata.name, // O serviço NGINX
+                                port: { number: 80 },
+                            },
                         },
-                    },
-                }
-                ],
+                    }],
+                },
             },
-        }],
+            {
+                host: "app.fabricaleads.com.br", // Regra para o subdomínio
+                http: {
+                    paths: [{
+                        path: "/",
+                        pathType: "Prefix",
+                        backend: {
+                            service: {
+                                name: nginxService.metadata.name, // O mesmo serviço NGINX, ou pode ser outro se necessário
+                                port: { number: 80 },
+                            },
+                        },
+                    }],
+                },
+            },
+        ],
         tls: [{
-            hosts: ["fabricaleads.com.br"],
-            secretName: "app-cert-tls",
+            hosts: ["fabricaleads.com.br", "app.fabricaleads.com.br"], // Certificado cobrindo ambos os domínios
+            secretName: "cert-tls", // Secret gerado pelo Cert-Manager contendo o certificado TLS
         }],
     },
-},);
+});
+
 
 
 
